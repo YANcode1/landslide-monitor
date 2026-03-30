@@ -281,9 +281,30 @@
         </div>
     </div>
 
-    <script src="https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js"></script>
     <script>
         var client=null,hist=[],MAX_H=30;
+        var MQTT_CDN_LIST=[
+            'https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js',
+            'https://unpkg.com/mqtt@5.10.1/dist/mqtt.min.js',
+            'https://cdnjs.cloudflare.com/ajax/libs/mqtt/5.10.1/mqtt.min.js'
+        ];
+        var cdnIdx=0;
+
+        function loadMqtt(){
+            if(cdnIdx>=MQTT_CDN_LIST.length){
+                document.getElementById('connText').textContent='MQTT库加载失败';
+                document.getElementById('connDot').style.background='var(--orange)';
+                return;
+            }
+            var s=document.createElement('script');
+            s.src=MQTT_CDN_LIST[cdnIdx];
+            s.onload=function(){
+                if(typeof mqtt!=='undefined'){initApp()}
+                else{cdnIdx++;loadMqtt()}
+            };
+            s.onerror=function(){cdnIdx++;loadMqtt()};
+            document.head.appendChild(s);
+        }
 
         function getCfg(){
             var s=localStorage.getItem('ls_cfg');
@@ -428,18 +449,7 @@
             connect(c);
         }
 
-        if(typeof mqtt!=='undefined'){
-            initApp();
-        }else{
-            var s=document.createElement('script');
-            s.src='https://cdn.jsdelivr.net/npm/mqtt@5.10.1/dist/mqtt.min.js';
-            s.onload=function(){initApp()};
-            s.onerror=function(){
-                document.getElementById('connText').textContent='MQTT库加载失败';
-                document.getElementById('connDot').style.background='var(--orange)';
-            };
-            document.head.appendChild(s);
-        }
+        loadMqtt();
     </script>
 </body>
 </html>
