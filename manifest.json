@@ -1,6 +1,6 @@
 {
-    "name": "公路边坡滑坡监测预警系统",
-    "short_name": "边坡监测",
+    "name": "公路边坡检测预警系统",
+    "short_name": "边坡检测",
     "description": "实时监测山体滑坡传感器数据",
     "start_url": "/landslide-monitor/",
     "scope": "/landslide-monitor/",
