@@ -1,0 +1,438 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>山体滑坡监测系统</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            min-height: 100vh;
+            color: #fff;
+            padding: 10px;
+        }
+        .header {
+            text-align: center;
+            padding: 15px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            margin-bottom: 15px;
+        }
+        .header h1 { font-size: 20px; color: #e94560; }
+        .status-bar {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 13px;
+        }
+        .status-dot {
+            width: 10px; height: 10px;
+            border-radius: 50%;
+            background: #ff4444;
+            transition: background 0.3s;
+        }
+        .status-dot.online { background: #00ff88; box-shadow: 0 0 8px #00ff88; }
+        .alarm-badge {
+            background: #e94560;
+            color: #fff;
+            padding: 2px 10px;
+            border-radius: 12px;
+            font-size: 12px;
+            display: none;
+            animation: blink 1s infinite;
+        }
+        .alarm-badge.active { display: inline-block; }
+        @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.3} }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            max-width: 500px;
+            margin: 0 auto;
+        }
+        .card {
+            background: rgba(255,255,255,0.08);
+            border-radius: 12px;
+            padding: 15px;
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255,255,255,0.1);
+            transition: transform 0.2s;
+        }
+        .card:active { transform: scale(0.98); }
+        .card-title {
+            font-size: 12px;
+            color: rgba(255,255,255,0.6);
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .card-value {
+            font-size: 28px;
+            font-weight: bold;
+            color: #00d2ff;
+        }
+        .card-unit {
+            font-size: 12px;
+            color: rgba(255,255,255,0.5);
+            margin-left: 4px;
+        }
+        .card.warn .card-value { color: #ff6b6b; }
+        .card.danger .card-value { color: #e94560; animation: blink 0.5s infinite; }
+        .card.full { grid-column: 1 / -1; }
+        .gps-card {
+            background: rgba(0,210,255,0.05);
+            border: 1px solid rgba(0,210,255,0.2);
+        }
+        .gps-link {
+            display: inline-block;
+            margin-top: 8px;
+            padding: 6px 16px;
+            background: #0f3460;
+            border: 1px solid #00d2ff;
+            border-radius: 20px;
+            color: #00d2ff;
+            font-size: 13px;
+            text-decoration: none;
+            transition: all 0.2s;
+        }
+        .gps-link:active { background: #00d2ff; color: #1a1a2e; }
+        .history {
+            max-width: 500px;
+            margin: 15px auto 0;
+            background: rgba(255,255,255,0.05);
+            border-radius: 12px;
+            padding: 12px;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+        .history-title {
+            font-size: 14px;
+            color: rgba(255,255,255,0.6);
+            margin-bottom: 8px;
+        }
+        .history-list {
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 11px;
+            color: rgba(255,255,255,0.5);
+        }
+        .history-item {
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+            display: flex;
+            justify-content: space-between;
+        }
+        .history-item:last-child { border-bottom: none; }
+        .history-time { color: rgba(255,255,255,0.3); }
+        .config-btn {
+            position: fixed;
+            bottom: 15px;
+            right: 15px;
+            width: 44px;
+            height: 44px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+            color: #fff;
+            font-size: 20px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .config-panel {
+            position: fixed;
+            bottom: 70px;
+            right: 15px;
+            background: rgba(26,26,46,0.95);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 12px;
+            padding: 15px;
+            width: 280px;
+            display: none;
+            backdrop-filter: blur(20px);
+        }
+        .config-panel.show { display: block; }
+        .config-panel label {
+            display: block;
+            font-size: 12px;
+            color: rgba(255,255,255,0.6);
+            margin-bottom: 4px;
+            margin-top: 10px;
+        }
+        .config-panel input {
+            width: 100%;
+            padding: 8px;
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 6px;
+            background: rgba(255,255,255,0.05);
+            color: #fff;
+            font-size: 13px;
+        }
+        .config-panel button {
+            width: 100%;
+            padding: 10px;
+            margin-top: 15px;
+            background: #e94560;
+            border: none;
+            border-radius: 6px;
+            color: #fff;
+            font-size: 14px;
+            cursor: pointer;
+        }
+        .update-time {
+            text-align: center;
+            font-size: 11px;
+            color: rgba(255,255,255,0.3);
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>山体滑坡监测系统</h1>
+        <div class="status-bar">
+            <div class="status-dot" id="statusDot"></div>
+            <span id="statusText">未连接</span>
+            <span class="alarm-badge" id="alarmBadge">报警中</span>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="card" id="cardRain">
+            <div class="card-title">🌧 雨量</div>
+            <div class="card-value" id="valRain">--<span class="card-unit">mm</span></div>
+        </div>
+        <div class="card" id="cardSoil">
+            <div class="card-title">🌱 土壤湿度</div>
+            <div class="card-value" id="valSoil">--<span class="card-unit">%</span></div>
+        </div>
+        <div class="card" id="cardDist">
+            <div class="card-title">📏 位移距离</div>
+            <div class="card-value" id="valDist">--<span class="card-unit">cm</span></div>
+        </div>
+        <div class="card" id="cardAlarm">
+            <div class="card-title">🚨 报警状态</div>
+            <div class="card-value" id="valAlarm" style="font-size:20px;">正常</div>
+        </div>
+        <div class="card">
+            <div class="card-title">📐 俯仰角</div>
+            <div class="card-value" id="valPitch" style="font-size:22px;">--<span class="card-unit">°</span></div>
+        </div>
+        <div class="card">
+            <div class="card-title">📐 横滚角</div>
+            <div class="card-value" id="valRoll" style="font-size:22px;">--<span class="card-unit">°</span></div>
+        </div>
+        <div class="card full gps-card" id="cardGps">
+            <div class="card-title">📍 GPS定位</div>
+            <div class="card-value" id="valGps" style="font-size:16px;">定位中...</div>
+            <a class="gps-link" id="gpsLink" href="#" target="_blank" style="display:none;">在地图中查看位置</a>
+        </div>
+    </div>
+
+    <div class="history">
+        <div class="history-title">📋 最近数据记录</div>
+        <div class="history-list" id="historyList">
+            <div class="history-item" style="color:rgba(255,255,255,0.3);">等待数据...</div>
+        </div>
+    </div>
+
+    <div class="update-time" id="updateTime"></div>
+
+    <button class="config-btn" onclick="toggleConfig()">⚙</button>
+    <div class="config-panel" id="configPanel">
+        <label>MQTT服务器地址</label>
+        <input type="text" id="cfgHost" value="yc611a7a.ala.cn-hangzhou.emqxsl.cn">
+        <label>WebSocket端口</label>
+        <input type="text" id="cfgPort" value="8084">
+        <label>用户名</label>
+        <input type="text" id="cfgUser" value="dtu_device1">
+        <label>密码</label>
+        <input type="password" id="cfgPass" value="Gz2994457339">
+        <label>订阅主题</label>
+        <input type="text" id="cfgTopic" value="/device/001/control">
+        <button onclick="saveAndConnect()">保存并连接</button>
+    </div>
+
+    <script>
+        var client = null;
+        var historyData = [];
+        var MAX_HISTORY = 20;
+
+        function getConfig() {
+            var saved = localStorage.getItem('mqtt_config');
+            if (saved) return JSON.parse(saved);
+            return {
+                host: document.getElementById('cfgHost').value,
+                port: document.getElementById('cfgPort').value,
+                user: document.getElementById('cfgUser').value,
+                pass: document.getElementById('cfgPass').value,
+                topic: document.getElementById('cfgTopic').value
+            };
+        }
+
+        function toggleConfig() {
+            document.getElementById('configPanel').classList.toggle('show');
+        }
+
+        function saveAndConnect() {
+            var config = {
+                host: document.getElementById('cfgHost').value,
+                port: document.getElementById('cfgPort').value,
+                user: document.getElementById('cfgUser').value,
+                pass: document.getElementById('cfgPass').value,
+                topic: document.getElementById('cfgTopic').value
+            };
+            localStorage.setItem('mqtt_config', JSON.stringify(config));
+            document.getElementById('configPanel').classList.remove('show');
+            if (client) client.end();
+            connectMQTT(config);
+        }
+
+        function connectMQTT(config) {
+            document.getElementById('statusText').textContent = '连接中...';
+            document.getElementById('statusDot').className = 'status-dot';
+
+            var url = 'wss://' + config.host + ':' + config.port + '/mqtt';
+            var clientId = 'web_' + Math.random().toString(36).substr(2, 8);
+
+            client = mqtt.connect(url, {
+                clientId: clientId,
+                username: config.user,
+                password: config.pass,
+                clean: true,
+                connectTimeout: 10000,
+                reconnectPeriod: 5000
+            });
+
+            client.on('connect', function() {
+                document.getElementById('statusText').textContent = '已连接';
+                document.getElementById('statusDot').className = 'status-dot online';
+                client.subscribe(config.topic, {qos: 0});
+            });
+
+            client.on('message', function(topic, message) {
+                try {
+                    var data = JSON.parse(message.toString());
+                    updateDashboard(data);
+                    addHistory(data);
+                } catch(e) {
+                    console.log('Parse error:', e);
+                }
+            });
+
+            client.on('error', function(err) {
+                document.getElementById('statusText').textContent = '连接失败';
+                document.getElementById('statusDot').className = 'status-dot';
+                console.log('MQTT Error:', err);
+            });
+
+            client.on('close', function() {
+                document.getElementById('statusText').textContent = '已断开';
+                document.getElementById('statusDot').className = 'status-dot';
+            });
+        }
+
+        function updateDashboard(data) {
+            var rain = data.rain || 0;
+            var soil = data.soil || 0;
+            var dist = data.disp || 0;
+            var pitch = data.pitch || 0;
+            var roll = data.roll || 0;
+            var alarm = data.alarm || 0;
+            var lat = data.lat || 0;
+            var lon = data.lon || 0;
+
+            document.getElementById('valRain').innerHTML = rain.toFixed(1) + '<span class="card-unit">mm</span>';
+            document.getElementById('valSoil').innerHTML = soil.toFixed(1) + '<span class="card-unit">%</span>';
+            document.getElementById('valDist').innerHTML = dist.toFixed(1) + '<span class="card-unit">cm</span>';
+            document.getElementById('valPitch').innerHTML = pitch.toFixed(1) + '<span class="card-unit">°</span>';
+            document.getElementById('valRoll').innerHTML = roll.toFixed(1) + '<span class="card-unit">°</span>';
+
+            var distCard = document.getElementById('cardDist');
+            distCard.className = 'card';
+            if (dist > 10) {
+                distCard.className = 'card danger';
+            }
+
+            var alarmBadge = document.getElementById('alarmBadge');
+            var alarmCard = document.getElementById('cardAlarm');
+            if (alarm > 0 || dist > 10) {
+                document.getElementById('valAlarm').textContent = '报警!';
+                document.getElementById('valAlarm').style.color = '#e94560';
+                alarmCard.className = 'card danger';
+                alarmBadge.className = 'alarm-badge active';
+            } else {
+                document.getElementById('valAlarm').textContent = '正常';
+                document.getElementById('valAlarm').style.color = '#00ff88';
+                alarmCard.className = 'card';
+                alarmBadge.className = 'alarm-badge';
+            }
+
+            if (lat > 0.001 || lon > 0.001) {
+                document.getElementById('valGps').textContent = lat.toFixed(6) + ', ' + lon.toFixed(6);
+                document.getElementById('valGps').style.color = '#00ff88';
+                var link = document.getElementById('gpsLink');
+                link.href = 'https://uri.amap.com/marker?position=' + lon + ',' + lat + '&name=监测点';
+                link.style.display = 'inline-block';
+            } else {
+                document.getElementById('valGps').textContent = '未定位';
+                document.getElementById('valGps').style.color = 'rgba(255,255,255,0.5)';
+                document.getElementById('gpsLink').style.display = 'none';
+            }
+
+            var now = new Date();
+            var timeStr = now.getFullYear() + '-' +
+                String(now.getMonth()+1).padStart(2,'0') + '-' +
+                String(now.getDate()).padStart(2,'0') + ' ' +
+                String(now.getHours()).padStart(2,'0') + ':' +
+                String(now.getMinutes()).padStart(2,'0') + ':' +
+                String(now.getSeconds()).padStart(2,'0');
+            document.getElementById('updateTime').textContent = '最后更新: ' + timeStr;
+        }
+
+        function addHistory(data) {
+            var now = new Date();
+            var timeStr = String(now.getHours()).padStart(2,'0') + ':' +
+                String(now.getMinutes()).padStart(2,'0') + ':' +
+                String(now.getSeconds()).padStart(2,'0');
+
+            var item = {
+                time: timeStr,
+                rain: (data.rain || 0).toFixed(1),
+                soil: (data.soil || 0).toFixed(1),
+                dist: (data.disp || 0).toFixed(1),
+                alarm: data.alarm || 0
+            };
+
+            historyData.unshift(item);
+            if (historyData.length > MAX_HISTORY) historyData.pop();
+
+            var html = '';
+            for (var i = 0; i < historyData.length; i++) {
+                var d = historyData[i];
+                var alarmColor = d.alarm > 0 || parseFloat(d.dist) > 10 ? '#e94560' : 'rgba(255,255,255,0.5)';
+                html += '<div class="history-item">' +
+                    '<span class="history-time">' + d.time + '</span>' +
+                    '<span style="color:' + alarmColor + '">雨:' + d.rain + 'mm 土:' + d.soil + '% 距:' + d.dist + 'cm</span>' +
+                    '</div>';
+            }
+            document.getElementById('historyList').innerHTML = html;
+        }
+
+        window.onload = function() {
+            var config = getConfig();
+            document.getElementById('cfgHost').value = config.host;
+            document.getElementById('cfgPort').value = config.port;
+            document.getElementById('cfgUser').value = config.user;
+            document.getElementById('cfgPass').value = config.pass;
+            document.getElementById('cfgTopic').value = config.topic;
+            connectMQTT(config);
+        };
+    </script>
+</body>
+</html>
