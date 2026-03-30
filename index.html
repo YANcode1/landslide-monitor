@@ -365,7 +365,7 @@
         }
 
         function update(d){
-            var rain=d.rain||0,soil=d.soil||0,dist=d.disp||0;
+            var rain=d.rain||0,soil=d.soil||0,dist=(d.disp||0)/10;
             var pitch=d.pitch||0,roll=d.roll||0,alarm=d.alarm||0;
             var lat=d.lat||0,lon=d.lon||0;
 
@@ -423,7 +423,7 @@
                 String(n.getMinutes()).padStart(2,'0')+':'+
                 String(n.getSeconds()).padStart(2,'0');
             hist.unshift({t:t,r:(d.rain||0).toFixed(1),s:(d.soil||0).toFixed(1),
-                d:(d.disp||0).toFixed(1),a:d.alarm||0});
+                d:((d.disp||0)/10).toFixed(1),a:d.alarm||0});
             if(hist.length>MAX_H)hist.pop();
             var h='';
             for(var i=0;i<hist.length;i++){
