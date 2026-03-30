@@ -381,12 +381,12 @@
 
             var dc=document.getElementById('cardDist');
             dc.className='sensor-card';
-            if(dist>10)dc.className='sensor-card danger';
+            if(dist>5)dc.className='sensor-card danger';
 
             var ab=document.getElementById('alertBanner');
             var ac=document.getElementById('cardAlarm');
             var va=document.getElementById('vAlarm');
-            if(alarm>0||dist>10){
+            if(alarm>0||dist>5){
                 ab.classList.add('show');
                 ac.className='sensor-card danger';
                 va.textContent='⚠ 报警';
@@ -428,7 +428,7 @@
             var h='';
             for(var i=0;i<hist.length;i++){
                 var x=hist[i];
-                var ac=x.a>0||parseFloat(x.d)>10;
+                var ac=x.a>0||parseFloat(x.d)>5;
                 h+='<div class="history-item">'+
                     '<span class="history-time">'+x.t+'</span>'+
                     '<div class="history-data">'+

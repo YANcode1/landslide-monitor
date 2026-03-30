@@ -415,7 +415,7 @@
             var html = '';
             for (var i = 0; i < historyData.length; i++) {
                 var d = historyData[i];
-                var alarmColor = d.alarm > 0 || parseFloat(d.dist) > 10 ? '#e94560' : 'rgba(255,255,255,0.5)';
+                var alarmColor = d.alarm > 0 || parseFloat(d.dist) > 5 ? '#e94560' : 'rgba(255,255,255,0.5)';
                 html += '<div class="history-item">' +
                     '<span class="history-time">' + d.time + '</span>' +
                     '<span style="color:' + alarmColor + '">雨:' + d.rain + 'mm 土:' + d.soil + '% 距:' + d.dist + 'cm</span>' +
